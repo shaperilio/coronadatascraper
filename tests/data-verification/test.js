@@ -5,7 +5,7 @@ const shared = path.join(process.cwd(), 'src', 'shared');
 const lib = path.join(shared, 'lib');
 const log = imports(path.join(lib, 'log.js')).default;
 const fs = require('fs');
-const assert = require('assert');
+// const assert = require('assert');
 
 const getFileUpdatedDate = path => {
   const stats = fs.statSync(path);
@@ -14,6 +14,33 @@ const getFileUpdatedDate = path => {
 
 function countCommas(string) {
   return string.split(',').length - 1;
+}
+
+function extractStateByCommas(string) {
+  const parts = string.split(',');
+  let theState = parts[0];
+  for (let i = 1; i < parts.length - 1; i++) {
+    theState += `,${parts[i]}`;
+  }
+  return theState;
+}
+
+function checkForWords(string, wordArray, exceptionArray = []) {
+  for (const word of wordArray) {
+    if (string.toUpperCase().includes(word.toUpperCase())) {
+      // We found an offensive word. But is it contained within one of our exceptions?
+      let excepted = false;
+      for (const exception of exceptionArray) {
+        if (exception.toUpperCase().includes(word.toUpperCase())) {
+          excepted = true;
+          break;
+        }
+      }
+      if (!excepted) {
+        log.warn(`${string} constains "${word}".`);
+      }
+    }
+  }
 }
 
 function accumulateAllFieldsOf(data, inField = '') {
@@ -144,12 +171,7 @@ function checkCountries(data) {
   log(`There are ${countriesByLevel} countries in the data with level==="country" (case sensitive).`);
 
   for (const country of levelIsCountryCaseSensitive) {
-    if (country.toUpperCase().includes('CITY')) {
-      log.warn(`Country "${country}" has "city" in the name!`);
-    }
-    if (country.toUpperCase().includes('COUNTY')) {
-      log.warn(`Country "${country}" has "county" in the name!`);
-    }
+    checkForWords(country, ['city', 'county', 'state', 'country', 'region', 'parish'], ['United States']);
   }
 }
 
@@ -157,7 +179,7 @@ function checkStates(data) {
   const keys = Object.keys(data);
   const oneComma = [];
   const levelIsStateCaseSensitive = [];
-  const levelIsState = [];
+  const levelIsStateCaseInsensitive = [];
   for (const k of keys) {
     if (countCommas(k) === 1) {
       oneComma.push(k);
@@ -167,44 +189,70 @@ function checkStates(data) {
       levelIsStateCaseSensitive.push(k);
     }
     if (entry.level.toUpperCase() === 'STATE') {
-      levelIsState.push(k);
+      levelIsStateCaseInsensitive.push(k);
     }
   }
 
   const statesByCommas = oneComma.length;
   const statesByLevel = levelIsStateCaseSensitive.length;
-  const statesByLevelCI = levelIsStateCaseSensitive.length;
+  const statesByLevelCI = levelIsStateCaseInsensitive.length;
 
-  assert(statesByCommas === statesByLevel);
-  assert(statesByCommas === statesByLevelCI);
-  assert(statesByLevel === statesByLevelCI);
-
-  const n = statesByCommas;
-  const states = levelIsStateCaseSensitive;
-
-  for (let i = 0; i < n; i++) {
-    const stateByComma = oneComma[i];
-    assert(
-      levelIsState.indexOf(stateByComma) !== -1,
-      `${stateByComma} not found in list of keys with level==="sTaTe" (case insensitive).`
-    );
-    assert(
-      levelIsStateCaseSensitive.indexOf(stateByComma) !== -1,
-      `${stateByComma} not found in list of keys with level==="state" (case sensitive).`
-    );
-    const theState = states[i].split(',')[0];
-    assert(data[states[i]].state === theState, `${theState} has state="${data[states[i]].state}".`);
+  if (statesByCommas !== statesByLevel) {
+    log.error(`There are ${statesByCommas} states as classified by the number of commas, 
+    but ${statesByLevel} keys with level==="state" (case sensitive).`);
+  }
+  if (statesByCommas !== statesByLevelCI) {
+    log.error(`There are ${statesByCommas} states as classified by the number of commas, 
+    but ${statesByLevelCI} keys with level==="sTaTe" (case insensitive).`);
+  }
+  if (statesByLevel !== statesByLevelCI) {
+    log.error(`There are ${statesByLevel} keys with level==="state" (case sensitive)., 
+    but ${statesByLevelCI} keys with level==="sTaTe" (case insensitive).`);
   }
 
-  log(`There are ${n} province equivalents in the data.`);
+  for (const state of oneComma) {
+    if (levelIsStateCaseInsensitive.indexOf(state) === -1) {
+      log.error(`${state} not found in list of keys with level==="sTaTe" (case insensitive).`);
+    }
+    if (levelIsStateCaseSensitive.indexOf(state) === -1) {
+      log.error(`${state} not found in list of keys with level==="state" (case sensitive).`);
+    }
+    const theState = extractStateByCommas(state);
+    if (theState !== data[state].state) {
+      log.error(`${state} has state==="${data[state].state}"`);
+    }
+  }
 
-  for (const state of states) {
-    if (state.toUpperCase().includes('CITY')) {
-      log.warn(`${state} has "city" in the name!`);
+  for (const state of levelIsStateCaseInsensitive) {
+    if (oneComma.indexOf(state) === -1) {
+      log.error(`${state} not found in list of keys with one comma.`);
     }
-    if (state.toUpperCase().includes('COUNTY')) {
-      log.warn(`${state} has "county" in the name!`);
+    if (levelIsStateCaseSensitive.indexOf(state) === -1) {
+      log.error(`${state} not found in list of keys with level==="state" (case sensitive).`);
     }
+    const theState = extractStateByCommas(state);
+    if (theState !== data[state].state) {
+      log.error(`${state} has state==="${data[state].state}"`);
+    }
+  }
+
+  for (const state of levelIsStateCaseSensitive) {
+    if (oneComma.indexOf(state) === -1) {
+      log.error(`${state} not found in list of keys with one comma.`);
+    }
+    if (levelIsStateCaseInsensitive.indexOf(state) === -1) {
+      log.error(`${state} not found in list of keys with level==="sTaTe" (case insensitive).`);
+    }
+    const theState = extractStateByCommas(state);
+    if (theState !== data[state].state) {
+      log.error(`${state} has state==="${data[state].state}"`);
+    }
+  }
+
+  log(`There are ${statesByLevel} province equivalents in the data.`);
+
+  for (const state of levelIsStateCaseSensitive) {
+    checkForWords(state, ['city', 'county', 'state', 'country', 'region', 'parish'], ['United States']);
   }
 }
 
@@ -216,10 +264,18 @@ const keys = Object.keys(data);
 log(`There are ${keys.length} keys (locations).`);
 
 accumulateAllFieldsOf(data);
+log('');
+
 accumulateAllFieldsOf(data, 'dates');
+log('');
 
 accumulateAllValuesOf(data, 'level');
+log('');
 
+log('Check of countries:');
 checkCountries(data);
+log('');
 
+log('Check of province equivalents:');
 checkStates(data);
+log('');
