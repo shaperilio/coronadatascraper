@@ -62,10 +62,14 @@ function accumulateAllValuesOf(data, field) {
 }
 
 function checkCountries(data) {
+  // Check what should be a country. We have a few ways to do this:
+  // 1. Check keys which don't have commas (this was my original Python hack before the level field existed)
+  // 2. Check level==="country" (case sensitive) - we assume this is what we actually want.
+  // 3. Check the level in a case insensitive manner - these would be typos.
   const keys = Object.keys(data);
   const noCommas = [];
   const levelIsCountryCaseSensitive = [];
-  const levelIsCountry = [];
+  const levelIsCountryCaseInsensitive = [];
   for (const k of keys) {
     if (countCommas(k) === 0) {
       noCommas.push(k);
@@ -75,36 +79,76 @@ function checkCountries(data) {
       levelIsCountryCaseSensitive.push(k);
     }
     if (entry.level.toUpperCase() === 'COUNTRY') {
-      levelIsCountry.push(k);
+      levelIsCountryCaseInsensitive.push(k);
     }
   }
 
   const countriesByCommas = noCommas.length;
   const countriesByLevel = levelIsCountryCaseSensitive.length;
-  const countriesByLevelCI = levelIsCountryCaseSensitive.length;
+  const countriesByLevelCI = levelIsCountryCaseInsensitive.length;
 
-  assert(countriesByCommas === countriesByLevel);
-  assert(countriesByCommas === countriesByLevelCI);
-  assert(countriesByLevel === countriesByLevelCI);
+  // Check counts. First signs of trouble is if there's something off here.
 
-  const n = countriesByCommas;
-  const countries = levelIsCountryCaseSensitive;
-
-  for (let i = 0; i < n; i++) {
-    assert(noCommas[i] === levelIsCountry[i]);
-    assert(noCommas[i] === levelIsCountryCaseSensitive[i]);
-    assert(levelIsCountry[i] === levelIsCountryCaseSensitive[i]);
-    assert(data[countries[i]].country === countries[i]);
+  if (countriesByCommas !== countriesByLevel) {
+    log.error(`There are ${countriesByCommas} countries as classified by the number of commas, 
+    but ${countriesByLevel} keys with level==="country" (case sensitive).`);
+  }
+  if (countriesByCommas !== countriesByLevelCI) {
+    log.error(`There are ${countriesByCommas} countries as classified by the number of commas, 
+    but ${countriesByLevelCI} keys with level==="cOuNtRy" (case insensitive).`);
+  }
+  if (countriesByLevel !== countriesByLevelCI) {
+    log.error(`There are ${countriesByLevel} keys with level==="country" (case sensitive), 
+    but ${countriesByLevelCI} keys with level==="cOuNtRy" (case insensitive).`);
   }
 
-  log(`There are ${n} countries in the data.`);
+  // We checked the count, but we still need to check the members.
 
-  for (const country of countries) {
+  for (const country of noCommas) {
+    if (levelIsCountryCaseInsensitive.indexOf(country) === -1) {
+      log.error(`${country} is not in the list of keys with level==="cOuNtRy" (case insensitive).`);
+    }
+    if (levelIsCountryCaseSensitive.indexOf(country) === -1) {
+      log.error(`${country} is not in the list of keys with level==="country" (case sensitive).`);
+    }
+    if (data[country].country !== country) {
+      log.error(`${country} has country==="${data[country].country}`);
+    }
+  }
+
+  for (const country of levelIsCountryCaseSensitive) {
+    if (noCommas.indexOf(country) === -1) {
+      log.error(`${country} is not in the list of keys with no commas.`);
+    }
+    if (levelIsCountryCaseInsensitive.indexOf(country) === -1) {
+      log.error(`${country} is not in the list of keys with level==="cOuNtRy" (case insensitive).`);
+    }
+    if (data[country].country !== country) {
+      log.error(`${country} has country==="${data[country].country}`);
+    }
+  }
+
+  for (const country of levelIsCountryCaseInsensitive) {
+    if (noCommas.indexOf(country) === -1) {
+      log.error(`${country} is not in the list of keys with no commas.`);
+    }
+    if (levelIsCountryCaseSensitive.indexOf(country) === -1) {
+      log.error(`${country} is not in the list of keys with level==="country" (case sensitive).`);
+    }
+    if (data[country].country !== country) {
+      log.error(`${country} has country==="${data[country].country}`);
+    }
+  }
+
+  // These are what we assume are correctly classified countries.
+  log(`There are ${countriesByLevel} countries in the data with level==="country" (case sensitive).`);
+
+  for (const country of levelIsCountryCaseSensitive) {
     if (country.toUpperCase().includes('CITY')) {
-      log.warn(`${country} has "city" in the name!`);
+      log.warn(`Country "${country}" has "city" in the name!`);
     }
     if (country.toUpperCase().includes('COUNTY')) {
-      log.warn(`${country} has "county" in the name!`);
+      log.warn(`Country "${country}" has "county" in the name!`);
     }
   }
 }
