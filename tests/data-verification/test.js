@@ -16,6 +16,42 @@ function countCommas(string) {
   return string.split(',').length - 1;
 }
 
+function getKeysByCommaCount(keys, numCommas) {
+  const result = [];
+  for (const k of keys) {
+    if (countCommas(k) === numCommas) {
+      result.push(k);
+    }
+  }
+  return result;
+}
+
+function getCountriesByCommas(data) {
+  const keys = Object.keys(data);
+  return getKeysByCommaCount(keys, 0);
+}
+
+function getStatesByCommas(data) {
+  const keys = Object.keys(data);
+  return getKeysByCommaCount(keys, 1);
+}
+
+function getKeysWithLevel(data, level) {
+  const caseSensitive = [];
+  const caseInsensitive = [];
+  const keys = Object.keys(data);
+  for (const k of keys) {
+    const entry = data[k];
+    if (entry.level === level) {
+      caseSensitive.push(k);
+    }
+    if (entry.level.toUpperCase() === level.toUpperCase()) {
+      caseInsensitive.push(k);
+    }
+  }
+  return [caseSensitive, caseInsensitive];
+}
+
 function extractStateByCommas(string) {
   const parts = string.split(',');
   let theState = parts[0];
@@ -25,19 +61,21 @@ function extractStateByCommas(string) {
   return theState;
 }
 
-function checkForWords(string, wordArray, exceptionArray = []) {
-  for (const word of wordArray) {
-    if (string.toUpperCase().includes(word.toUpperCase())) {
-      // We found an offensive word. But is it contained within one of our exceptions?
-      let excepted = false;
-      for (const exception of exceptionArray) {
-        if (exception.toUpperCase().includes(word.toUpperCase())) {
-          excepted = true;
-          break;
+function checkForWords(stringArray, wordArray, exceptionArray = []) {
+  for (const string of stringArray) {
+    for (const word of wordArray) {
+      if (string.toUpperCase().includes(word.toUpperCase())) {
+        // We found an offensive word. But is it contained within one of our exceptions?
+        let excepted = false;
+        for (const exception of exceptionArray) {
+          if (exception.toUpperCase().includes(word.toUpperCase())) {
+            excepted = true;
+            break;
+          }
         }
-      }
-      if (!excepted) {
-        log.warn(`${string} constains "${word}".`);
+        if (!excepted) {
+          log.warn(`${string} constains "${word}".`);
+        }
       }
     }
   }
@@ -93,49 +131,37 @@ function checkCountries(data) {
   // 1. Check keys which don't have commas (this was my original Python hack before the level field existed)
   // 2. Check level==="country" (case sensitive) - we assume this is what we actually want.
   // 3. Check the level in a case insensitive manner - these would be typos.
-  const keys = Object.keys(data);
-  const noCommas = [];
-  const levelIsCountryCaseSensitive = [];
-  const levelIsCountryCaseInsensitive = [];
-  for (const k of keys) {
-    if (countCommas(k) === 0) {
-      noCommas.push(k);
-    }
-    const entry = data[k];
-    if (entry.level === 'country') {
-      levelIsCountryCaseSensitive.push(k);
-    }
-    if (entry.level.toUpperCase() === 'COUNTRY') {
-      levelIsCountryCaseInsensitive.push(k);
-    }
-  }
+  const byComma = getCountriesByCommas(data);
+  let byLevelCaseSensitive = [];
+  let byLevelCaseInsensitive = [];
+  [byLevelCaseSensitive, byLevelCaseInsensitive] = getKeysWithLevel(data, 'country');
 
-  const countriesByCommas = noCommas.length;
-  const countriesByLevel = levelIsCountryCaseSensitive.length;
-  const countriesByLevelCI = levelIsCountryCaseInsensitive.length;
+  const numByComma = byComma.length;
+  const numByLevel = byLevelCaseSensitive.length;
+  const numByLevelCI = byLevelCaseInsensitive.length;
 
   // Check counts. First signs of trouble is if there's something off here.
 
-  if (countriesByCommas !== countriesByLevel) {
-    log.error(`There are ${countriesByCommas} countries as classified by the number of commas, 
-    but ${countriesByLevel} keys with level==="country" (case sensitive).`);
+  if (numByComma !== numByLevel) {
+    log.error(`There are ${numByComma} countries as classified by the number of commas, 
+    but ${numByLevel} keys with level==="country" (case sensitive).`);
   }
-  if (countriesByCommas !== countriesByLevelCI) {
-    log.error(`There are ${countriesByCommas} countries as classified by the number of commas, 
-    but ${countriesByLevelCI} keys with level==="cOuNtRy" (case insensitive).`);
+  if (numByComma !== numByLevelCI) {
+    log.error(`There are ${numByComma} countries as classified by the number of commas, 
+    but ${numByLevelCI} keys with level==="cOuNtRy" (case insensitive).`);
   }
-  if (countriesByLevel !== countriesByLevelCI) {
-    log.error(`There are ${countriesByLevel} keys with level==="country" (case sensitive), 
-    but ${countriesByLevelCI} keys with level==="cOuNtRy" (case insensitive).`);
+  if (numByLevel !== numByLevelCI) {
+    log.error(`There are ${numByLevel} keys with level==="country" (case sensitive), 
+    but ${numByLevelCI} keys with level==="cOuNtRy" (case insensitive).`);
   }
 
   // We checked the count, but we still need to check the members.
 
-  for (const country of noCommas) {
-    if (levelIsCountryCaseInsensitive.indexOf(country) === -1) {
+  for (const country of byComma) {
+    if (byLevelCaseInsensitive.indexOf(country) === -1) {
       log.error(`${country} is not in the list of keys with level==="cOuNtRy" (case insensitive).`);
     }
-    if (levelIsCountryCaseSensitive.indexOf(country) === -1) {
+    if (byLevelCaseSensitive.indexOf(country) === -1) {
       log.error(`${country} is not in the list of keys with level==="country" (case sensitive).`);
     }
     if (data[country].country !== country) {
@@ -143,11 +169,11 @@ function checkCountries(data) {
     }
   }
 
-  for (const country of levelIsCountryCaseSensitive) {
-    if (noCommas.indexOf(country) === -1) {
+  for (const country of byLevelCaseSensitive) {
+    if (byComma.indexOf(country) === -1) {
       log.error(`${country} is not in the list of keys with no commas.`);
     }
-    if (levelIsCountryCaseInsensitive.indexOf(country) === -1) {
+    if (byLevelCaseInsensitive.indexOf(country) === -1) {
       log.error(`${country} is not in the list of keys with level==="cOuNtRy" (case insensitive).`);
     }
     if (data[country].country !== country) {
@@ -155,11 +181,11 @@ function checkCountries(data) {
     }
   }
 
-  for (const country of levelIsCountryCaseInsensitive) {
-    if (noCommas.indexOf(country) === -1) {
+  for (const country of byLevelCaseInsensitive) {
+    if (byComma.indexOf(country) === -1) {
       log.error(`${country} is not in the list of keys with no commas.`);
     }
-    if (levelIsCountryCaseSensitive.indexOf(country) === -1) {
+    if (byLevelCaseSensitive.indexOf(country) === -1) {
       log.error(`${country} is not in the list of keys with level==="country" (case sensitive).`);
     }
     if (data[country].country !== country) {
@@ -168,53 +194,39 @@ function checkCountries(data) {
   }
 
   // These are what we assume are correctly classified countries.
-  log(`There are ${countriesByLevel} countries in the data with level==="country" (case sensitive).`);
+  log(`There are ${numByLevel} countries in the data with level==="country" (case sensitive).`);
 
-  for (const country of levelIsCountryCaseSensitive) {
-    checkForWords(country, ['city', 'county', 'state', 'country', 'region', 'parish'], ['United States']);
-  }
+  checkForWords(byLevelCaseSensitive, ['city', 'county', 'state', 'country', 'region', 'parish'], ['United States']);
 }
 
 function checkStates(data) {
-  const keys = Object.keys(data);
-  const oneComma = [];
-  const levelIsStateCaseSensitive = [];
-  const levelIsStateCaseInsensitive = [];
-  for (const k of keys) {
-    if (countCommas(k) === 1) {
-      oneComma.push(k);
-    }
-    const entry = data[k];
-    if (entry.level === 'state') {
-      levelIsStateCaseSensitive.push(k);
-    }
-    if (entry.level.toUpperCase() === 'STATE') {
-      levelIsStateCaseInsensitive.push(k);
-    }
+  const byComma = getStatesByCommas(data);
+  let byLevelCaseSensitive = [];
+  let byLevelCaseInsensitive = [];
+  [byLevelCaseSensitive, byLevelCaseInsensitive] = getKeysWithLevel(data, 'state');
+
+  const numByCommas = byComma.length;
+  const numByLevel = byLevelCaseSensitive.length;
+  const numByLevelCI = byLevelCaseInsensitive.length;
+
+  if (numByCommas !== numByLevel) {
+    log.error(`There are ${numByCommas} states as classified by the number of commas, 
+    but ${numByLevel} keys with level==="state" (case sensitive).`);
+  }
+  if (numByCommas !== numByLevelCI) {
+    log.error(`There are ${numByCommas} states as classified by the number of commas, 
+    but ${numByLevelCI} keys with level==="sTaTe" (case insensitive).`);
+  }
+  if (numByLevel !== numByLevelCI) {
+    log.error(`There are ${numByLevel} keys with level==="state" (case sensitive)., 
+    but ${numByLevelCI} keys with level==="sTaTe" (case insensitive).`);
   }
 
-  const statesByCommas = oneComma.length;
-  const statesByLevel = levelIsStateCaseSensitive.length;
-  const statesByLevelCI = levelIsStateCaseInsensitive.length;
-
-  if (statesByCommas !== statesByLevel) {
-    log.error(`There are ${statesByCommas} states as classified by the number of commas, 
-    but ${statesByLevel} keys with level==="state" (case sensitive).`);
-  }
-  if (statesByCommas !== statesByLevelCI) {
-    log.error(`There are ${statesByCommas} states as classified by the number of commas, 
-    but ${statesByLevelCI} keys with level==="sTaTe" (case insensitive).`);
-  }
-  if (statesByLevel !== statesByLevelCI) {
-    log.error(`There are ${statesByLevel} keys with level==="state" (case sensitive)., 
-    but ${statesByLevelCI} keys with level==="sTaTe" (case insensitive).`);
-  }
-
-  for (const state of oneComma) {
-    if (levelIsStateCaseInsensitive.indexOf(state) === -1) {
+  for (const state of byComma) {
+    if (byLevelCaseInsensitive.indexOf(state) === -1) {
       log.error(`${state} not found in list of keys with level==="sTaTe" (case insensitive).`);
     }
-    if (levelIsStateCaseSensitive.indexOf(state) === -1) {
+    if (byLevelCaseSensitive.indexOf(state) === -1) {
       log.error(`${state} not found in list of keys with level==="state" (case sensitive).`);
     }
     const theState = extractStateByCommas(state);
@@ -223,11 +235,11 @@ function checkStates(data) {
     }
   }
 
-  for (const state of levelIsStateCaseInsensitive) {
-    if (oneComma.indexOf(state) === -1) {
+  for (const state of byLevelCaseInsensitive) {
+    if (byComma.indexOf(state) === -1) {
       log.error(`${state} not found in list of keys with one comma.`);
     }
-    if (levelIsStateCaseSensitive.indexOf(state) === -1) {
+    if (byLevelCaseSensitive.indexOf(state) === -1) {
       log.error(`${state} not found in list of keys with level==="state" (case sensitive).`);
     }
     const theState = extractStateByCommas(state);
@@ -236,11 +248,11 @@ function checkStates(data) {
     }
   }
 
-  for (const state of levelIsStateCaseSensitive) {
-    if (oneComma.indexOf(state) === -1) {
+  for (const state of byLevelCaseSensitive) {
+    if (byComma.indexOf(state) === -1) {
       log.error(`${state} not found in list of keys with one comma.`);
     }
-    if (levelIsStateCaseInsensitive.indexOf(state) === -1) {
+    if (byLevelCaseInsensitive.indexOf(state) === -1) {
       log.error(`${state} not found in list of keys with level==="sTaTe" (case insensitive).`);
     }
     const theState = extractStateByCommas(state);
@@ -249,9 +261,9 @@ function checkStates(data) {
     }
   }
 
-  log(`There are ${statesByLevel} province equivalents in the data.`);
+  log(`There are ${numByLevel} province equivalents in the data.`);
 
-  for (const state of levelIsStateCaseSensitive) {
+  for (const state of byLevelCaseSensitive) {
     checkForWords(state, ['city', 'county', 'state', 'country', 'region', 'parish'], ['United States']);
   }
 }
