@@ -9,6 +9,7 @@ const fields = imports('./fields.js');
 
 function checkSchema(data) {
   const keys = Object.keys(data);
+
   const dataFields = fields.accumulateAllFieldsOf(data);
   // Show this sorted by values.
   log(`There are ${dataFields.length} unique fields.`);
@@ -22,6 +23,14 @@ function checkSchema(data) {
   log(`Dates range from ${theDates[0].field} to ${theDates[theDates.length - 1].field}`);
   for (const date of sortedByDate) {
     log(`  "${date.field}" occurs ${date.value} times (${((date.value / keys.length) * 100).toFixed(2)}%).`);
+  }
+  log('');
+
+  const dateContents = fields.accumulateAllFieldsOf(data, 'dates.*');
+  const dateCount = fields.countKeysOf(data, 'dates.*');
+  log(`There are ${dateContents.length} unique subfields of a date.`);
+  for (const subfield of dateContents.sort((a, b) => (a.value > b.value ? 1 : -1))) {
+    log(`  "${subfield.field}" occurs ${subfield.value} times (${((subfield.value / dateCount) * 100).toFixed(2)}%).`);
   }
   log('');
 
