@@ -5,6 +5,8 @@ const shared = path.join(process.cwd(), 'src', 'shared');
 const lib = path.join(shared, 'lib');
 const log = imports(path.join(lib, 'log.js')).default;
 const fs = require('fs');
+
+const checkSchema = imports('./schema.js').default;
 // const assert = require('assert');
 
 const getFileUpdatedDate = path => {
@@ -81,51 +83,6 @@ function checkForWords(stringArray, wordArray, exceptionArray = []) {
   }
 }
 
-function accumulateAllFieldsOf(data, inField = '') {
-  const keys = Object.keys(data);
-  const fields = [];
-  for (const k of keys) {
-    let entry;
-    if (inField === '') {
-      entry = data[k];
-    } else {
-      entry = data[k][inField];
-    }
-    const theseFields = Object.keys(entry);
-    for (const f of theseFields) {
-      if (fields.indexOf(f) === -1) {
-        fields.push(f);
-      }
-    }
-  }
-  let suffix = '';
-  if (inField !== '') {
-    suffix = ` in "${inField}"`;
-  }
-  log(`There are ${fields.length} unique fields${suffix}.`);
-  for (const field of fields) {
-    log(`  ${field}`);
-  }
-  return fields;
-}
-
-function accumulateAllValuesOf(data, field) {
-  const keys = Object.keys(data);
-  const values = [];
-  for (const k of keys) {
-    const entry = data[k];
-    const value = entry[field];
-    if (values.indexOf(value) === -1) {
-      values.push(value);
-    }
-  }
-  log(`There are ${values.length} unique values for the field "${field}"`);
-  for (const value of values) {
-    log(`  ${value}`);
-  }
-  return values;
-}
-
 function checkCountries(data) {
   // Check what should be a country. We have a few ways to do this:
   // 1. Check keys which don't have commas (this was my original Python hack before the level field existed)
@@ -158,10 +115,10 @@ function checkCountries(data) {
   // We checked the count, but we still need to check the members.
 
   for (const country of byComma) {
-    if (byLevelCaseInsensitive.indexOf(country) === -1) {
+    if (!byLevelCaseInsensitive.includes(country)) {
       log.error(`${country} is not in the list of keys with level==="cOuNtRy" (case insensitive).`);
     }
-    if (byLevelCaseSensitive.indexOf(country) === -1) {
+    if (!byLevelCaseSensitive.includes(country)) {
       log.error(`${country} is not in the list of keys with level==="country" (case sensitive).`);
     }
     if (data[country].country !== country) {
@@ -170,10 +127,10 @@ function checkCountries(data) {
   }
 
   for (const country of byLevelCaseSensitive) {
-    if (byComma.indexOf(country) === -1) {
+    if (!byComma.includes(country)) {
       log.error(`${country} is not in the list of keys with no commas.`);
     }
-    if (byLevelCaseInsensitive.indexOf(country) === -1) {
+    if (!byLevelCaseInsensitive.includes(country)) {
       log.error(`${country} is not in the list of keys with level==="cOuNtRy" (case insensitive).`);
     }
     if (data[country].country !== country) {
@@ -182,10 +139,10 @@ function checkCountries(data) {
   }
 
   for (const country of byLevelCaseInsensitive) {
-    if (byComma.indexOf(country) === -1) {
+    if (!byComma.includes(country)) {
       log.error(`${country} is not in the list of keys with no commas.`);
     }
-    if (byLevelCaseSensitive.indexOf(country) === -1) {
+    if (!byLevelCaseSensitive.includes(country)) {
       log.error(`${country} is not in the list of keys with level==="country" (case sensitive).`);
     }
     if (data[country].country !== country) {
@@ -223,10 +180,10 @@ function checkStates(data) {
   }
 
   for (const state of byComma) {
-    if (byLevelCaseInsensitive.indexOf(state) === -1) {
+    if (!byLevelCaseInsensitive.includes(state)) {
       log.error(`${state} not found in list of keys with level==="sTaTe" (case insensitive).`);
     }
-    if (byLevelCaseSensitive.indexOf(state) === -1) {
+    if (!byLevelCaseSensitive.includes(state)) {
       log.error(`${state} not found in list of keys with level==="state" (case sensitive).`);
     }
     const theState = extractStateByCommas(state);
@@ -236,10 +193,10 @@ function checkStates(data) {
   }
 
   for (const state of byLevelCaseInsensitive) {
-    if (byComma.indexOf(state) === -1) {
+    if (!byComma.includes(state)) {
       log.error(`${state} not found in list of keys with one comma.`);
     }
-    if (byLevelCaseSensitive.indexOf(state) === -1) {
+    if (!byLevelCaseSensitive.includes(state)) {
       log.error(`${state} not found in list of keys with level==="state" (case sensitive).`);
     }
     const theState = extractStateByCommas(state);
@@ -249,10 +206,10 @@ function checkStates(data) {
   }
 
   for (const state of byLevelCaseSensitive) {
-    if (byComma.indexOf(state) === -1) {
+    if (!byComma.includes(state)) {
       log.error(`${state} not found in list of keys with one comma.`);
     }
-    if (byLevelCaseInsensitive.indexOf(state) === -1) {
+    if (!byLevelCaseInsensitive.includes(state)) {
       log.error(`${state} not found in list of keys with level==="sTaTe" (case insensitive).`);
     }
     const theState = extractStateByCommas(state);
@@ -268,26 +225,21 @@ function checkStates(data) {
   }
 }
 
-const inputFile = './dist/timeseries-byLocation.json';
-log(`${inputFile} was last modified ${getFileUpdatedDate(inputFile)}.`);
+if (!module.parent) {
+  const inputFile = './dist/timeseries-byLocation.json';
+  log(`${inputFile} was last modified ${getFileUpdatedDate(inputFile)}.`);
 
-const data = JSON.parse(fs.readFileSync(inputFile).toString());
-const keys = Object.keys(data);
-log(`There are ${keys.length} keys (locations).`);
+  const data = JSON.parse(fs.readFileSync(inputFile).toString());
+  const keys = Object.keys(data);
+  log(`There are ${keys.length} keys (locations).`);
 
-accumulateAllFieldsOf(data);
-log('');
+  checkSchema(data);
 
-accumulateAllFieldsOf(data, 'dates');
-log('');
+  log('Check of countries:');
+  checkCountries(data);
+  log('');
 
-accumulateAllValuesOf(data, 'level');
-log('');
-
-log('Check of countries:');
-checkCountries(data);
-log('');
-
-log('Check of province equivalents:');
-checkStates(data);
-log('');
+  log('Check of province equivalents:');
+  checkStates(data);
+  log('');
+}
