@@ -21,10 +21,7 @@ async function getUrls(sourceUrl) {
   // UA scraper.
   log('Getting PDF URLs for Argentina...');
 
-  // QUESTION: how does the JHU scraper go get the same URL day after day instead of just going to the cache every time?
-  // I need to do that here, because the URL with the PDF list in it never changes, and if I don't declare this
-  // a timeseries, it will not fetch data for previous days ("cannot go back in time to get ...").
-
+  // treat it as a timeseries since there's previous days' data there.
   const page = await fetch.page(sourceUrl, false);
   if (page === null) {
     throw new Error('Argentina source page not fetched!');
@@ -118,10 +115,8 @@ const scraper = {
       // sort the sub-days so we process morning before evening.
       const subDays = Object.keys(urls);
       for (const subDay of subDays.sort()) {
-        // QUESTION: Hack! set date to false so that we don't get the "can't go back in time" error.
-        // Setting it to false will put these PDFs in the timeseries cache, but they each have a unique URL so we
-        // should be OK.
-        // Either this hack, or we back-fill the cache.
+        // Hack! we have to say that this is a time series despite it not being one to avoid the
+        // "Can't go back in time" error, however, that means we will go fetch this on the server every time.
         await fetch.pdf(urls[subDay], false);
       }
       throw new NotImplemented(`ARG scraper is cache-only for ${date}.`);
