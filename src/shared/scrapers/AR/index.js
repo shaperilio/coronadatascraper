@@ -1,5 +1,5 @@
 import * as fetch from '../../lib/fetch/index.js';
-// import datetime from '../../lib/datetime/index.js';
+import datetime from '../../lib/datetime/index.js';
 import maintainers from '../../lib/maintainers.js';
 import { NotImplemented } from '../../lib/errors.js';
 import log from '../../lib/log.js';
@@ -16,13 +16,13 @@ import log from '../../lib/log.js';
 // So we define one scraper, which gets the URLs for the scrapeDate,
 // and then just fetches them to cache them.
 
-async function getUrls(sourceUrl) {
+async function getUrls(obj, sourceUrl) {
   // This function should return a dictionary of URLs by date, so that the scraper can work more like the
   // UA scraper.
   log('Getting PDF URLs for Argentina...');
 
   // treat it as a timeseries since there's previous days' data there.
-  const page = await fetch.page(sourceUrl, false);
+  const page = await fetch.page(obj, sourceUrl, 'pdf_list_page', false); // , {alwaysRun: true});
   if (page === null) {
     throw new Error('Argentina source page not fetched!');
   }
@@ -105,21 +105,36 @@ const scraper = {
 
   scraper: {
     '0': async function() {
-      const date = process.env.SCRAPE_DATE;
-      const urlsByDate = await getUrls(this.url);
+      const urlsByDate = await getUrls(this, this.url);
 
-      if (!(date in urlsByDate)) {
-        throw new Error(`Cannot establish URL to scrape for Argentina on ${date}.`);
+      // The scrape date is in ... UTC? Sometimes, apparnetly.
+      // If process.env.SCRAPE_DATE is not defined, getYYYYMMDD returns today in UTC
+      // which causes problems when we try to access dated resources such as this one.
+      // i.e., I need to know the scrape date in Argentina.
+      let scrapeDate;
+      if (datetime.scrapeDate()) {
+        // FIXME
+        // Sadly, timeseries.js uses Date which means we try to scrape into the future depending
+        // on what time of day you run it.
+        scrapeDate = datetime.getYYYYMMDD(datetime.scrapeDate());
+      } else {
+        // If it's not defined, assume today.
+        scrapeDate = datetime.getYYYYMMDD(datetime.now.at('America/Argentina/Buenos_Aires'));
       }
-      const urls = urlsByDate[process.env.SCRAPE_DATE];
+
+      log(`scrapeDate = ${scrapeDate}`);
+      if (!(scrapeDate in urlsByDate)) {
+        throw new Error(`Cannot establish URL to scrape for Argentina on ${scrapeDate}.`);
+      }
+      const urls = urlsByDate[scrapeDate];
       // sort the sub-days so we process morning before evening.
       const subDays = Object.keys(urls);
       for (const subDay of subDays.sort()) {
         // Hack! we have to say that this is a time series despite it not being one to avoid the
         // "Can't go back in time" error, however, that means we will go fetch this on the server every time.
-        await fetch.pdf(urls[subDay], false);
+        await fetch.pdf(this, urls[subDay], `${scrapeDate}_${subDay}`, false);
       }
-      throw new NotImplemented(`ARG scraper is cache-only for ${date}.`);
+      throw new NotImplemented(`ARG scraper is cache-only for ${scrapeDate}.`);
     }
   }
 };
