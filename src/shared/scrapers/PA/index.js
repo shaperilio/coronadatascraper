@@ -21,18 +21,18 @@ const patientLocation = {
   'AISLAMIENTO DOMICILIARIO': 'quarantine',
   HOSPITALIZADO: 'hospitalized',
   UCI: 'icu',
-  RECUPERADO: 'recovered',
-  UNKNOWN: 'unknown'
+  RECUPERADO: 'recovered'
 };
 
 function getCountsFromLocation(location) {
+  const parsed = patientLocation[location];
   const counts = {};
-  if (location === patientLocation.UNKNOWN) {
-    log.warn(`Patient location is "${patientLocation.UNKNOWN}", it will not be counted.`);
+  if (!parsed) {
+    log.warn(`Patient location is "${location}", it will not be counted.`);
     return counts;
   }
   counts.cases = 1;
-  counts[location] = 1;
+  counts[parsed] = 1;
   return counts;
 }
 
@@ -325,12 +325,7 @@ const scraper = {
         continue;
       } // this turns this scraper into a timeseries.
 
-      const location = patientLocation[patient.UBICACIÓN_DEL_PACIENTE];
-      if (location === patientLocation.UNKNOWN) {
-        log.warn(`Patient location "${location}" is unparsable; this patient will not be counted.`);
-        continue;
-      }
-      const counts = getCountsFromLocation(location);
+      const counts = getCountsFromLocation(patient.UBICACIÓN_DEL_PACIENTE);
       const state = getProvinceIso2(patient.PROVINCIA);
       // To do this by county, we need:
       // 1. Population of counties.
