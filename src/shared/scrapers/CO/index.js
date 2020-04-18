@@ -128,6 +128,7 @@ const scraper = {
 
     // use datetime.old here, just like the caching system does.
     if (!datetime.dateIsBefore(scrapeDate, datetime.old.getDate())) {
+      const failedToFetch = [];
       log(`Caching amazing data...`);
       // Grab the stuff we want to cache with this date.
       // TODO: deal with this after migrating to li
@@ -136,9 +137,12 @@ const scraper = {
         try {
           await TEMPfetchArcGISJSON(this, this._cacheOnlyFeatureURLs[i], cacheKey);
         } catch (err) {
+          failedToFetch.push(this._cacheOnlyFeatureURLs[i]);
           log(`Error fetching cache-only source: ${err}`);
         }
       }
+      log(`Error fetching cache-only source(s):`);
+      for (const URL of failedToFetch) log(`--> ${URL}`);
     }
 
     this.url = this._caseListFeatureURL;
