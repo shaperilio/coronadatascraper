@@ -147,7 +147,13 @@ const scraper = {
     const data = [];
     log(`Colombia has ${caseList.length} cumulative cases.`);
     let rejectedByDate = 0;
+    let badSourceData = 0;
     for (const patient of caseList) {
+      if (!patient.FECHA) {
+        log.warn(`Patient has no date! ${JSON.stringify(patient)}.`);
+        badSourceData++;
+        continue;
+      }
       const confirmedDate = datetime.getYYYYMMDD(patient.FECHA);
       if (!datetime.dateIsBeforeOrEqualTo(confirmedDate, scrapeDate)) {
         rejectedByDate++;
@@ -177,7 +183,8 @@ const scraper = {
       }
     }
 
-    log(`Counting up to ${scrapeDate}: ${rejectedByDate} out of ${caseList.length} rejected by date.`);
+    log(`Counting up to ${scrapeDate}: ${rejectedByDate} out of ${caseList.length - badSourceData} rejected by date.`);
+    log(`${badSourceData} out of original ${caseList.length} rejected due to bad data at the source.`);
 
     if (data.length === 0) return data;
 
